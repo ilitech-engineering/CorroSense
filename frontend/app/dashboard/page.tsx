@@ -118,7 +118,7 @@ const orgName = organizations?.[0]?.name ?? 'Your Organization'
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 truncate group-hover:text-slate-900">{run.name}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {(run.pipelines as { name: string; code: string } | null)?.code} · {formatDate(run.inspection_date)}
+                    {(run.pipelines as { name: string; code: string }[] | null)?.[0]?.code} · {formatDate(run.inspection_date)}
                   </p>
                 </div>
                 <RunStatusBadge status={run.status as any} />
@@ -140,7 +140,7 @@ const orgName = organizations?.[0]?.name ?? 'Your Organization'
               <div key={job.id} className="flex items-center gap-4 px-5 py-3.5">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 truncate">
-                    {(job.inspection_runs as { name: string } | null)?.name ?? 'Unknown run'}
+                    {(job.inspection_runs as { name: string }[] | null)?.[0]?.name ?? 'Unknown run'}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {job.defects_found} defects · {formatDate(job.queued_at)}
