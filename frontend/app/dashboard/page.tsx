@@ -57,7 +57,11 @@ export default async function DashboardPage() {
       .limit(5),
   ])
 
-  const orgName = (membership?.organizations as { name: string } | null)?.name ?? 'Your Organization'
+  const organizations = membership?.organizations as
+  | { name: string }[]
+  | null
+
+const orgName = organizations?.[0]?.name ?? 'Your Organization'
 
   return (
     <AppShell>
