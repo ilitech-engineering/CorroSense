@@ -1,107 +1,184 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
-import { ProjectStatusBadge } from '@/components/ui/StatusBadge'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { formatDate } from '@/lib/utils'
-import { FolderOpen, Plus, MapPin, Calendar } from 'lucide-react'
-import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 
-export default async function ProjectsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+export default function NewProjectPage() {
+  const router = useRouter()
+  const supabase = createClient()
 
-  const { data: membership } = await supabase
-    .from('organization_members')
-    .select('organization_id, role')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .single()
+  const [form, setForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+    location: '',
+    start_date: '',
+    status: 'active',
+  })
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('organization_id', membership?.organization_id)
-    .order('created_at', { ascending: false })
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+  }
 
-  const canEdit = ['admin', 'engineer'].includes(membership?.role ?? '')
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    // Get user org
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/auth/login'); return }
+
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single()
+
+    if (!membership) {
+      setError('You are not linked to any organization. Contact your administrator.')
+      setLoading(false)
+      return
+    }
+
+    const { error: insertError } = await supabase.from('projects').insert({
+      organization_id: membership.organization_id,
+      name:        form.name,
+      code:        form.code.toUpperCase(),
+      description: form.description || null,
+      location:    form.location || null,
+      start_date:  form.start_date || null,
+      status:      form.status,
+      created_by:  user.id,
+    })
+
+    if (insertError) {
+      setError(insertError.message)
+      setLoading(false)
+      return
+    }
+
+    router.push('/projects')
+    router.refresh()
+  }
 
   return (
     <AppShell>
       <Header
-        breadcrumbs={[{ label: 'Projects' }]}
-        actions={
-          canEdit && (
-            <Link href="/projects/new" className="btn-primary btn-sm">
-              <Plus className="w-4 h-4" />
-              New Project
-            </Link>
-          )
-        }
+        breadcrumbs={[
+          { label: 'Projects', href: '/projects' },
+          { label: 'New Project' },
+        ]}
       />
 
       <div className="page-header">
-        <h1 className="page-title">Projects</h1>
-        <p className="page-subtitle">{projects?.length ?? 0} project{projects?.length !== 1 ? 's' : ''} in your organization</p>
+        <h1 className="page-title">New Project</h1>
+        <p className="page-subtitle">Create a new pipeline inspection project</p>
       </div>
 
-      {projects && projects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {projects.map(project => (
-            <Link
-              key={project.id}
-              href={`/projects/${project.id}`}
-              className="card p-5 hover:border-slate-300 hover:shadow-sm transition-all group cursor-pointer block"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 min-w-0 mr-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{project.code}</span>
-                    <ProjectStatusBadge status={project.status} />
-                  </div>
-                  <h3 className="font-semibold text-slate-900 group-hover:text-slate-700 truncate">{project.name}</h3>
-                </div>
-                <FolderOpen className="w-5 h-5 text-slate-300 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
-              </div>
+      <div className="max-w-2xl">
+        <div className="card p-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
 
-              {project.description && (
-                <p className="text-sm text-slate-500 mb-3 line-clamp-2">{project.description}</p>
-              )}
-
-              <div className="flex items-center gap-4 text-xs text-slate-400 mt-3">
-                {project.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {project.location}
-                  </span>
-                )}
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {formatDate(project.created_at)}
-                </span>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Project name *</label>
+                <input
+                  name="name"
+                  value={form.name}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="GK3 Trunk Line Assessment"
+                  required
+                />
               </div>
-            </Link>
-          ))}
+              <div>
+                <label className="form-label">Project code *</label>
+                <input
+                  name="code"
+                  value={form.code}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="GK3-2024"
+                  required
+                />
+                <p className="form-hint">Short unique identifier. Will be uppercased.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">Description</label>
+              <textarea
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                className="form-textarea"
+                rows={3}
+                placeholder="Describe the scope of this inspection project..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Location</label>
+                <input
+                  name="location"
+                  value={form.location}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Hassi Messaoud – Bejaia, Algeria"
+                />
+              </div>
+              <div>
+                <label className="form-label">Start date</label>
+                <input
+                  name="start_date"
+                  type="date"
+                  value={form.start_date}
+                  onChange={handleChange}
+                  className="form-input"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">Status</label>
+              <select name="status" value={form.status} onChange={handleChange} className="form-select">
+                <option value="active">Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
+              <button type="submit" disabled={loading} className="btn-primary">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Create project
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
-      ) : (
-        <div className="card">
-          <EmptyState
-            icon={FolderOpen}
-            title="No projects yet"
-            description="Create your first inspection project to start managing pipeline integrity campaigns."
-            action={
-              canEdit && (
-                <Link href="/projects/new" className="btn-primary btn-sm">
-                  <Plus className="w-4 h-4" />
-                  Create project
-                </Link>
-              )
-            }
-          />
-        </div>
-      )}
+      </div>
     </AppShell>
   )
 }
