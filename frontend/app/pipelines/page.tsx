@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { formatDate, formatDistance } from '@/lib/utils'
-import { GitBranch, Plus, Ruler } from 'lucide-react'
+import { GitBranch, Plus } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function PipelinesPage() {
@@ -12,14 +12,16 @@ export default async function PipelinesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: membership } = await supabase
+  const db = await createServiceClient()
+
+  const { data: membership } = await db
     .from('organization_members')
     .select('organization_id, role')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .single()
 
-  const { data: pipelines } = await supabase
+  const { data: pipelines } = await db
     .from('pipelines')
     .select('*, projects(name, code)')
     .eq('organization_id', membership?.organization_id)
@@ -32,12 +34,12 @@ export default async function PipelinesPage() {
       <Header
         breadcrumbs={[{ label: 'Pipelines' }]}
         actions={
-          canEdit && (
+          canEdit ? (
             <Link href="/pipelines/new" className="btn-primary btn-sm">
               <Plus className="w-4 h-4" />
               New Pipeline
             </Link>
-          )
+          ) : undefined
         }
       />
 
@@ -51,14 +53,9 @@ export default async function PipelinesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Project</th>
-                <th>Diameter</th>
-                <th>Length</th>
-                <th>Material</th>
-                <th>Fluid</th>
-                <th>Commissioned</th>
+                <th>Code</th><th>Name</th><th>Project</th>
+                <th>Diameter</th><th>Length</th><th>Material</th>
+                <th>Fluid</th><th>Commissioned</th>
               </tr>
             </thead>
             <tbody>
@@ -71,21 +68,11 @@ export default async function PipelinesPage() {
                   </td>
                   <td className="font-medium text-slate-800">{p.name}</td>
                   <td className="text-xs text-slate-500">{(p.projects as any)?.code ?? '—'}</td>
-                  <td className="font-mono text-xs text-slate-500">
-                    {p.diameter_mm ? `${p.diameter_mm} mm` : '—'}
-                  </td>
-                  <td className="font-mono text-xs text-slate-500">
-                    {p.total_length_m ? formatDistance(p.total_length_m) : '—'}
-                  </td>
-                  <td className="text-xs capitalize text-slate-500">
-                    {p.material?.replace(/_/g, ' ') ?? '—'}
-                  </td>
-                  <td className="text-xs capitalize text-slate-500">
-                    {p.transported_fluid?.replace(/_/g, ' ') ?? '—'}
-                  </td>
-                  <td className="text-xs text-slate-400">
-                    {p.commissioned_at ? formatDate(p.commissioned_at) : '—'}
-                  </td>
+                  <td className="font-mono text-xs text-slate-500">{p.diameter_mm ? `${p.diameter_mm} mm` : '—'}</td>
+                  <td className="font-mono text-xs text-slate-500">{p.total_length_m ? formatDistance(p.total_length_m) : '—'}</td>
+                  <td className="text-xs capitalize text-slate-500">{p.material?.replace(/_/g, ' ') ?? '—'}</td>
+                  <td className="text-xs capitalize text-slate-500">{p.transported_fluid?.replace(/_/g, ' ') ?? '—'}</td>
+                  <td className="text-xs text-slate-400">{p.commissioned_at ? formatDate(p.commissioned_at) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -96,15 +83,8 @@ export default async function PipelinesPage() {
           <EmptyState
             icon={GitBranch}
             title="No pipelines registered"
-            description="Register your pipeline assets to start associating inspection runs and analysis results."
-            action={
-              canEdit && (
-                <Link href="/pipelines/new" className="btn-primary btn-sm">
-                  <Plus className="w-4 h-4" />
-                  Add pipeline
-                </Link>
-              )
-            }
+            description="Register pipeline assets to associate with inspection runs."
+            action={canEdit ? <Link href="/pipelines/new" className="btn-primary btn-sm"><Plus className="w-4 h-4" />Add pipeline</Link> : undefined}
           />
         </div>
       )}
