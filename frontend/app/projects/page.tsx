@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
@@ -13,14 +13,16 @@ export default async function ProjectsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: membership } = await supabase
+  const db = await createServiceClient()
+
+  const { data: membership } = await db
     .from('organization_members')
     .select('organization_id, role')
     .eq('user_id', user.id)
     .eq('status', 'active')
     .single()
 
-  const { data: projects } = await supabase
+  const { data: projects } = await db
     .from('projects')
     .select('*')
     .eq('organization_id', membership?.organization_id)
@@ -33,12 +35,12 @@ export default async function ProjectsPage() {
       <Header
         breadcrumbs={[{ label: 'Projects' }]}
         actions={
-          canEdit && (
+          canEdit ? (
             <Link href="/projects/new" className="btn-primary btn-sm">
               <Plus className="w-4 h-4" />
               New Project
             </Link>
-          )
+          ) : undefined
         }
       />
 
@@ -50,11 +52,8 @@ export default async function ProjectsPage() {
       {projects && projects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map(project => (
-            <Link
-              key={project.id}
-              href={`/projects/${project.id}`}
-              className="card p-5 hover:border-slate-300 hover:shadow-sm transition-all group cursor-pointer block"
-            >
+            <Link key={project.id} href={`/projects/${project.id}`}
+              className="card p-5 hover:border-slate-300 hover:shadow-sm transition-all group cursor-pointer block">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0 mr-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -65,22 +64,14 @@ export default async function ProjectsPage() {
                 </div>
                 <FolderOpen className="w-5 h-5 text-slate-300 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
               </div>
-
               {project.description && (
                 <p className="text-sm text-slate-500 mb-3 line-clamp-2">{project.description}</p>
               )}
-
               <div className="flex items-center gap-4 text-xs text-slate-400 mt-3">
                 {project.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {project.location}
-                  </span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{project.location}</span>
                 )}
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  {formatDate(project.created_at)}
-                </span>
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(project.created_at)}</span>
               </div>
             </Link>
           ))}
@@ -92,12 +83,12 @@ export default async function ProjectsPage() {
             title="No projects yet"
             description="Create your first inspection project to start managing pipeline integrity campaigns."
             action={
-              canEdit && (
+              canEdit ? (
                 <Link href="/projects/new" className="btn-primary btn-sm">
                   <Plus className="w-4 h-4" />
                   Create project
                 </Link>
-              )
+              ) : undefined
             }
           />
         </div>
