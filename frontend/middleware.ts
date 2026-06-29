@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const PUBLIC_PATHS = ['/auth/login', '/auth/signup', '/']
-
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -14,15 +12,14 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(
-          cookiesToSet: Array<{
-            name: string
-            value: string
-            options?: Parameters<typeof supabaseResponse.cookies.set>[2]
-          }>
-        ) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        setAll(cookiesToSet) {
+          // Set cookies on the request first
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          // Recreate the response with updated request
           supabaseResponse = NextResponse.next({ request })
+          // Set cookies on the response too
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -31,26 +28,36 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // IMPORTANT: always call getUser() — this refreshes the session
+  // and ensures cookies are forwarded to server components
   const { data: { user } } = await supabase.auth.getUser()
+
   const pathname = request.nextUrl.pathname
+  const isPublic = pathname === '/'
+    || pathname.startsWith('/auth/')
+    || pathname.startsWith('/api/')
+    || pathname.startsWith('/_next/')
+    || pathname.includes('.')
 
-  const isPublic = PUBLIC_PATHS.some(p => pathname === p) || pathname.startsWith('/api/')
-
+  // Not logged in → redirect to login
   if (!user && !isPublic) {
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/auth/login'
+    const loginUrl = new URL('/auth/login', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
-  if (user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
-    const dashboardUrl = request.nextUrl.clone()
-    dashboardUrl.pathname = '/dashboard'
+  // Already logged in → redirect away from auth pages
+  if (user && pathname.startsWith('/auth/')) {
+    const dashboardUrl = new URL('/dashboard', request.url)
     return NextResponse.redirect(dashboardUrl)
   }
 
+  // CRITICAL: return supabaseResponse (not NextResponse.next())
+  // This ensures the refreshed session cookies are forwarded
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg).*)',
+  ],
 }
