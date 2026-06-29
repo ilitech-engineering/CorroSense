@@ -12,19 +12,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(
-          cookiesToSet: Array<{
-            name: string
-            value: string
-            options?: Parameters<typeof cookieStore.set>[2]
-          }>
-        ) {
+        setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Server Component – cookies can't be set from here
+            // Called from a Server Component — safe to ignore
           }
         },
       },
@@ -33,6 +27,8 @@ export async function createClient() {
 }
 
 export async function createServiceClient() {
+  // Uses service role key — bypasses RLS entirely
+  // Only use in API routes (server-side), never in client components
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -43,13 +39,7 @@ export async function createServiceClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(
-          cookiesToSet: Array<{
-            name: string
-            value: string
-            options?: Parameters<typeof cookieStore.set>[2]
-          }>
-        ) {
+        setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
