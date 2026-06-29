@@ -6,14 +6,16 @@ import { createClient } from '@/lib/supabase/client'
 import { AppShell } from '@/components/layout/AppShell'
 import { Header } from '@/components/layout/Header'
 import { Loader2 } from 'lucide-react'
-import type { Project, Pipeline } from '@/types'
+// Partial types matching the select query columns only
+type ProjectOption  = { id: string; name: string; code: string }
+type PipelineOption = { id: string; name: string; code: string; total_length_m: number | null }
 
 export default function NewRunPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [projects, setProjects]   = useState<Project[]>([])
-  const [pipelines, setPipelines] = useState<Pipeline[]>([])
+  const [projects, setProjects]   = useState<ProjectOption[]>([])
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([])
   const [form, setForm] = useState({
     project_id:       '',
     pipeline_id:      '',
